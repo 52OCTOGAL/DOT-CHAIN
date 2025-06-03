@@ -8,6 +8,7 @@
 import SwiftUI
 import RealityKit
 import RealityKitContent
+import Foundation // Add this import for cos() and sin() functions
 
 // Custom component to identify spheres and their numbers
 struct SphereComponent: Component {
@@ -26,19 +27,16 @@ struct ImmersiveView: View {
     var body: some View {
         // Game view with the spheres
         RealityView { content in
+            // Clear existing spheres first
+            sphereEntities.removeAll()
+            
             // Create and add the spheres to the content
-            for i in 1...5 {
+            for i in appModel.sphereNumbers {
                 // Add gesture handling
                 let sphereEntity = createNumberedSphere(number: i)
                 
-                // Position spheres in different locations
-                let angle = Double(i) * (2 * Double.pi / 5)
-                let radius: Float = 0.3 // Reduced from 0.5 to make the formation smaller
-                sphereEntity.position = SIMD3<Float>(
-                    x: Float(cos(angle)) * radius,
-                    y: 1.5 + Float(sin(angle)) * radius, // Changed from 2 to 0.0 to position at eye level
-                    z: -1.0 // Move spheres back in z-axis
-                )
+                // Use the new positioning function
+                sphereEntity.position = calculateSpherePosition(for: i, total: appModel.numberOfSpheres)
                 
                 sphereEntity.components[SphereComponent.self] = SphereComponent(number: i)
                 
@@ -49,9 +47,40 @@ struct ImmersiveView: View {
                 sphereEntities[i] = sphereEntity
             }
         } update: { content in
-            // Update content if needed
+            // Handle updates when numberOfSpheres changes
+            if sphereEntities.count != appModel.numberOfSpheres {
+                // Remove all existing spheres
+                for entity in sphereEntities.values {
+                    content.remove(entity)
+                }
+                sphereEntities.removeAll()
+                
+                // Add new spheres
+                for i in appModel.sphereNumbers {
+                    let sphereEntity = createNumberedSphere(number: i)
+                    sphereEntity.position = calculateSpherePosition(for: i, total: appModel.numberOfSpheres)
+                    sphereEntity.components[SphereComponent.self] = SphereComponent(number: i)
+                    content.add(sphereEntity)
+                    sphereEntities[i] = sphereEntity
+                }
+            }
         }
         .gesture(sphereTap)
+    }
+    
+    // Update the positioning logic to handle variable numbers of spheres
+    private func calculateSpherePosition(for number: Int, total: Int) -> SIMD3<Float> {
+        let angle = Double(number - 1) * (2 * Double.pi / Double(total))
+        let radius: Float = 0.3
+        
+        // For small numbers of spheres, use a smaller radius to keep them closer
+        let adjustedRadius = total <= 3 ? radius * 0.7 : radius
+        
+        return SIMD3<Float>(
+            x: Float(cos(angle)) * adjustedRadius,
+            y: 1.5 + Float(sin(angle)) * adjustedRadius,
+            z: -1.0
+        )
     }
     
     // 2. Create our gesture
@@ -137,17 +166,22 @@ struct ImmersiveView: View {
         return textEntity
     }
     
-    // Get different colors for each numbered sphere
+    // Get different colors for each numbered sphere - now handles more than 5 spheres
     private func getColorForNumber(_ number: Int) -> UIColor {
-        switch number {
-        case 1: return .systemRed
-        case 2: return .systemBlue
-        case 3: return .systemGreen
-        case 4: return .systemOrange
-        case 5: return .systemPurple
-        default: return .white
-        }
+        let colors: [UIColor] = [
+            .systemRed, .systemBlue, .systemGreen, .systemOrange, .systemPurple,
+            .systemPink, .systemTeal, .systemIndigo, .systemBrown, .systemCyan,
+            .systemMint, .systemYellow, .magenta, .darkGray, .lightGray,
+            .systemRed.withAlphaComponent(0.7), .systemBlue.withAlphaComponent(0.7),
+            .systemGreen.withAlphaComponent(0.7), .systemOrange.withAlphaComponent(0.7),
+            .systemPurple.withAlphaComponent(0.7)
+        ]
+        
+        // Use modulo to cycle through colors if we have more spheres than colors
+        let colorIndex = (number - 1) % colors.count
+        return colors[colorIndex]
     }
 }
 
 // i have tried so many times to like centre the numbers but at least it does dissapre when pressed
+// Now with configurable sphere count and better color handling!
