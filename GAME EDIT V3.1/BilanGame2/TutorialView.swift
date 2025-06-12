@@ -17,9 +17,7 @@ struct TutorialView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 120, height: 120)
-                .background(Color.white)
-                .clipped()
-                .clipShape(Circle())
+                .clipShape(RoundedRectangle(cornerRadius: 24))
                 .shadow(radius: 10)
 
             Text("Welcome to Dot Chain")

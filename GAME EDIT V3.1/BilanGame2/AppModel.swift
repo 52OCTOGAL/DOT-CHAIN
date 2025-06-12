@@ -6,8 +6,6 @@
 //
 
 
-//  AppModel.swift
-//  BilanGame2
 
 import Foundation
 import SwiftUI
@@ -49,9 +47,6 @@ class AppModel: ObservableObject, Observable {
 
     func completeTutorial() {
         showTutorial = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.showTutorial = true
-        }
         resetGame()
     }
 
