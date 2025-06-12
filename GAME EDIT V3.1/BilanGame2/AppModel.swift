@@ -5,121 +5,143 @@
 //  Created by Joel Lewis on 18/03/2025.
 //
 
+
+//  AppModel.swift
+//  BilanGame2
+
+import Foundation
 import SwiftUI
 
-/// Maintains app-wide state
 @MainActor
-@Observable
-class AppModel {
+class AppModel: ObservableObject, Observable {
+    @Published var showTutorial: Bool = true
+    @AppStorage("bestTime") private var storedBestTime: Double?
+
+    @Published var numberOfSpheres: Int = 10
+    @Published var currentTarget: Int = 1
+    @Published var consecutiveCorrect: Int = 0
+    @Published var elapsedTime: Double = 0
+    @Published var immersiveSpaceState: ImmersiveSpaceState = .closed
+
     let immersiveSpaceID = "ImmersiveSpace"
+
     enum ImmersiveSpaceState {
-        case closed
-        case inTransition
-        case open
+        case closed, open, inTransition
     }
-    var immersiveSpaceState = ImmersiveSpaceState.closed
-    
-    // MARK: - Game Configuration
-    /// Number of spheres in the game (configurable)
-    var numberOfSpheres: Int = 5 {
-        didSet {
-            // Reset game when number of spheres changes
-            if numberOfSpheres != oldValue {
-                resetGame()
+
+    var gameCompleted: Bool {
+        currentTarget > numberOfSpheres
+    }
+
+    var gameProgress: Double {
+        Double(currentTarget - 1) / Double(numberOfSpheres)
+    }
+
+    var sphereNumbers: [Int] {
+        Array(1...numberOfSpheres)
+    }
+
+    var bestTime: Double? {
+        storedBestTime
+    }
+
+    // MARK: - Tutorial & Game Setup
+
+    func completeTutorial() {
+        showTutorial = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.showTutorial = true
+        }
+        resetGame()
+    }
+
+    func resetTutorial() {
+        showTutorial = true
+    }
+
+    func setDifficulty(_ difficulty: GameDifficulty) {
+        numberOfSpheres = difficulty.sphereCount
+        resetGame()
+    }
+
+    func setNumberOfSpheres(_ count: Int) {
+        numberOfSpheres = count
+        resetGame()
+    }
+
+    func resetGame() {
+        currentTarget = 1
+        consecutiveCorrect = 0
+        elapsedTime = 0
+        startTimer()
+    }
+
+    func advanceTarget() {
+        currentTarget += 1
+        consecutiveCorrect += 1
+
+        if gameCompleted {
+            stopTimer()
+            if let best = bestTime {
+                if elapsedTime < best {
+                    storedBestTime = elapsedTime
+                }
+            } else {
+                storedBestTime = elapsedTime
             }
         }
     }
-    
-    // MARK: - Tutorial State
-    var showTutorial = true
-    var tutorialCompleted = false
-    
-    // MARK: - Game State
-    var currentTarget = 1
-    var gameCompleted = false
-    var consecutiveCorrect = 0
-    
-    // MARK: - Computed Properties
-    /// Returns the maximum target number (same as numberOfSpheres)
-    var maxTarget: Int {
-        return numberOfSpheres
-    }
-    
-    /// Returns an array of sphere numbers (1 through numberOfSpheres)
-    var sphereNumbers: [Int] {
-        return Array(1...numberOfSpheres)
-    }
-    
-    /// Returns progress as a percentage (0.0 to 1.0)
-    var gameProgress: Double {
-        guard numberOfSpheres > 0 else { return 0.0 }
-        return Double(currentTarget - 1) / Double(numberOfSpheres)
-    }
-    
-    // MARK: - Game Logic
-    func advanceTarget() {
-        if currentTarget < numberOfSpheres {
-            currentTarget += 1
-            consecutiveCorrect += 1
-        } else {
-            gameCompleted = true
-        }
-    }
-    
+
     func incorrectSelection() {
         consecutiveCorrect = 0
     }
-    
-    func resetGame() {
-        currentTarget = 1
-        gameCompleted = false
-        consecutiveCorrect = 0
-    }
-    
-    // MARK: - Tutorial Methods
-    func completeTutorial() {
-        showTutorial = false
-        tutorialCompleted = true
-    }
-    
-    func resetTutorial() {
-        showTutorial = true
-        tutorialCompleted = false
-        resetGame()
-    }
-    
-    // MARK: - Configuration Methods
-    /// Sets the number of spheres for the game (minimum 1, maximum 20 for practical reasons)
-    func setNumberOfSpheres(_ count: Int) {
-        let clampedCount = max(1, min(20, count))
-        numberOfSpheres = clampedCount
-    }
-    
-    /// Convenience method to set common sphere counts
-    func setDifficulty(_ difficulty: GameDifficulty) {
-        numberOfSpheres = difficulty.sphereCount
-    }
-}
 
-// MARK: - Game Difficulty Enum
-enum GameDifficulty: String, CaseIterable {
-    case easy = "Easy"
-    case medium = "Medium"
-    case hard = "Hard"
-    case expert = "Expert"
-    
-    var sphereCount: Int {
-        switch self {
-        case .easy: return 3
-        case .medium: return 5
-        case .hard: return 7
-        case .expert: return 10
+    func clearBestTime() {
+        storedBestTime = nil
+    }
+
+    // MARK: - Timer Logic
+
+    private var timer: Timer?
+    private var startTime: Date?
+
+    private func startTimer() {
+        timer?.invalidate()
+        startTime = Date()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self = self, let start = self.startTime else { return }
+            self.elapsedTime = Date().timeIntervalSince(start)
         }
     }
-    
-    var description: String {
-        return "\(rawValue) (\(sphereCount) spheres)"
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    func loadBestTimeIfNeeded() {
+        _ = bestTime
     }
 }
 
-//this is the logic me thinks - now with configurable sphere count!
+enum GameDifficulty: CaseIterable {
+    case easy, medium, hard, expert
+
+    var sphereCount: Int {
+        switch self {
+        case .easy: return 5
+        case .medium: return 10
+        case .hard: return 15
+        case .expert: return 20
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .easy: return "Easy"
+        case .medium: return "Medium"
+        case .hard: return "Hard"
+        case .expert: return "Expert"
+        }
+    }
+}
